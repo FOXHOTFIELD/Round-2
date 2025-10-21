@@ -1,0 +1,60 @@
+# Keil MDK 工程专用忽略规则
+# --- 编译输出文件 ---
+*.o
+*.obj
+*.axf
+*.hex
+*.bin
+*.elf
+*.map
+*.lst
+*.crf
+*.d
+*.dep
+*.lnp
+
+# --- 工程相关临时文件 ---
+# 包含用户特定设置（如调试选项），建议忽略
+*.uvoptx
+# 包含IDE界面布局，应忽略
+*.uvguix.*
+# 编译过程日志
+*.plg
+
+# --- 构建输出目录 ---
+# 默认的构建输出目录，通常包含中间文件和最终产物
+MDK-ARM/
+Objects/
+Listings/
+# 常见的构建目录名称
+build/
+Debug/
+Release/
+output/
+
+# --- 调试与下载脚本 ---
+# 可能包含本地调试器配置
+*.jlink
+JLinkLog.txt
+*.ini
+*.scvd
+*.cdb
+*.dbg
+
+# --- 编辑器与IDE临时文件 ---
+# 备份文件
+*.bak
+*~
+*.tmp
+# Vim 临时文件
+*.swp
+*.swo
+# VS Code 配置（如使用）
+.vscode/
+# 其他IDE配置
+.idea/
+
+# --- 系统文件 ---
+.DS_Store
+Thumbs.db
+desktop.ini
