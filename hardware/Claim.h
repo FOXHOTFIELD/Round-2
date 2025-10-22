@@ -11,6 +11,8 @@ enum Motor_Mode{
 extern enum Motor_Mode Motor1_Mode;
 extern enum Motor_Mode Motor2_Mode;
 
+extern volatile int16_t Motor1_Speed;
+extern volatile int16_t Motor2_Speed;
 
 
 #endif
