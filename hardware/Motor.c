@@ -1,5 +1,7 @@
 #include "stm32f10x.h"
 #include "Claim.h"
+#include "Serial.h"
+#include "PID.h"
 
 extern int flag;
 extern int count;
@@ -8,14 +10,19 @@ void Motor_Init(void)
     /*电机1初始化*/
 
         /*PWM输出*/
-        /*PWMA -> PA0 TIM2_CH1*/
+        /*PWMA -> PA15 TIM2_CH1*/
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE); //重映射PA0
+
+    GPIO_PinRemapConfig(GPIO_PartialRemap1_TIM2, ENABLE);
+    // 常用配置：禁用JTAG，但保留SWD（可用于ST-LINK调试）
+    GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE);
 
     GPIO_InitTypeDef GPIO_IS;
     GPIO_IS.GPIO_Mode = GPIO_Mode_AF_PP;            //TIM2_CH1_ETR
-    GPIO_IS.GPIO_Pin = GPIO_Pin_0;                  //PWMA TIM2
+    GPIO_IS.GPIO_Pin = GPIO_Pin_15;                  //PWMA TIM2
     GPIO_IS.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_IS);
 
@@ -62,7 +69,7 @@ void Motor_Init(void)
     TIM_TBIS.TIM_ClockDivision = TIM_CKD_DIV1;
     TIM_TBIS.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TBIS.TIM_Period = 65536-1;
-    TIM_TBIS.TIM_Prescaler = 1 - 1;                  //20ms
+    TIM_TBIS.TIM_Prescaler = 1 - 1;
     TIM_TBIS.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM3, &TIM_TBIS);
 
@@ -78,24 +85,11 @@ void Motor_Init(void)
 
     TIM_EncoderInterfaceConfig(TIM3, TIM_EncoderMode_TI12, TIM_ICPolarity_Rising, TIM_ICPolarity_Rising);
 
-
-    //TIM_ClearFlag(TIM3, TIM_FLAG_Update);              //中断配置
-    ////TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
-
-    //NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
-
-    //NVIC_InitTypeDef NVIC_IS;
-    //NVIC_IS.NVIC_IRQChannel = TIM3_IRQn;
-    //NVIC_IS.NVIC_IRQChannelCmd = ENABLE;
-    //NVIC_IS.NVIC_IRQChannelPreemptionPriority = 1;
-    //NVIC_IS.NVIC_IRQChannelSubPriority = 1;
-    //NVIC_Init(&NVIC_IS);
-    
     TIM_Cmd(TIM3, ENABLE);
 
 }
 
-void TIM1_Init(void)
+void TIM1_Init(void)                //定时中断 20ms
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStruct;
     NVIC_InitTypeDef NVIC_InitStruct;
@@ -148,10 +142,12 @@ void TIM1_UP_IRQHandler(void)                             // TIM1更新中断服
     {
 
         Motor1_Speed = Motor1_getSpeed();   				//每隔固定时间段读取一次编码器计数增量值，即为速度值
-		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);			//清除TIM2更新事件的中断标志位
+		//TIM_ClearITPendingBit(TIM3, TIM_IT_Update);			//清除TIM2更新事件的中断标志位
 															//中断标志位必须清除
 															//否则中断将连续不断地触发，导致主程序卡死
-
+        float temp = (float) Motor1_Speed;
+        Serial_SendJustFloat(&temp, 1);
+        PIDControl();
         TIM_ClearITPendingBit(TIM1, TIM_IT_Update);       // 清除中断标志位[4,5](@ref)
     }
 }
@@ -181,7 +177,6 @@ void TIM3_IRQHandler(void)
         //}else if(count < 22) count++;
 	//}
 }
-
 /**
   * 函    数：PWM设置CCR
   * 参    数：Compare 要写入的CCR的值，范围：0~100
@@ -192,18 +187,6 @@ void TIM3_IRQHandler(void)
 void Motor1_SetCompare1(uint16_t Compare)
 {
 	TIM_SetCompare1(TIM2, Compare);		//设置CCR1的值
-}
-
-/**
-  * 函    数：PWM设置PSC
-  * 参    数：Prescaler 要写入的PSC的值，范围：0~65535
-  * 返 回 值：无
-  * 注意事项：PSC和ARR共同决定频率，此函数仅设置PSC的值，并不直接是频率
-  *           频率Freq = CK_PSC / (PSC + 1) / (ARR + 1)
-  */
-void Motor1_SetPrescaler(uint16_t Prescaler)
-{
-	TIM_PrescalerConfig(TIM2, Prescaler, TIM_PSCReloadMode_Immediate);		//设置PSC的值
 }
 
 void Motor_SetMode(int numMotor, enum Motor_Mode Mode)
@@ -233,3 +216,41 @@ void Motor_SetMode(int numMotor, enum Motor_Mode Mode)
     }
     Motor1_Mode = Mode;
 }
+/**
+  * 函    数：直流电机设置PWM
+  * 参    数：PWM 要设置的PWM值，范围：-100~100（负数为反转）
+  * 返 回 值：无
+  */
+void Motor_SetPWM(int8_t PWM)
+{
+	if (PWM >= 0)							//如果设置正转的PWM
+	{
+		//GPIO_ResetBits(GPIOB, GPIO_Pin_12);	//PB12置低电平
+		//GPIO_SetBits(GPIOB, GPIO_Pin_13);	//PB13置高电平
+        Motor_SetMode(1, Motor_Mode_frd_rotation);
+		Motor1_SetCompare1(PWM);				//设置PWM占空比
+	}
+	else									//否则，即设置反转的速度值
+	{
+		//GPIO_SetBits(GPIOB, GPIO_Pin_12);	//PB12置高电平
+		//GPIO_ResetBits(GPIOB, GPIO_Pin_13);	//PB13置低电平
+        Motor_SetMode(1, Motor_Mode_rvs_rotation);
+		Motor1_SetCompare1(-PWM);				//设置PWM占空比
+	}
+}
+
+
+
+/**
+  * 函    数：PWM设置PSC
+  * 参    数：Prescaler 要写入的PSC的值，范围：0~65535
+  * 返 回 值：无
+  * 注意事项：PSC和ARR共同决定频率，此函数仅设置PSC的值，并不直接是频率
+  *           频率Freq = CK_PSC / (PSC + 1) / (ARR + 1)
+  */
+void Motor1_SetPrescaler(uint16_t Prescaler)
+{
+	TIM_PrescalerConfig(TIM2, Prescaler, TIM_PSCReloadMode_Immediate);		//设置PSC的值
+}
+
+
