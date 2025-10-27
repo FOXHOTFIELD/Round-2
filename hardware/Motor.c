@@ -41,7 +41,7 @@ void Motor_Init(void)
     TIM_OCIS.TIM_OCPolarity = TIM_OCPolarity_High;
     TIM_OCIS.TIM_OutputState = TIM_OutputState_Enable;
     TIM_OCIS.TIM_Pulse = 0;
-    TIM_OC1Init(TIM2, &TIM_OCIS);               //在这里启动TIM2_CH1的IC
+    TIM_OC1Init(TIM2, &TIM_OCIS);               //在这里启动TIM2_CH1的OC
 
     TIM_Cmd(TIM2, ENABLE);
 
@@ -114,7 +114,7 @@ void TIM1_Init(void)                //定时中断 20ms
 
     // 4. 配置NVIC（嵌套向量中断控制器）
     NVIC_InitStruct.NVIC_IRQChannel = TIM1_UP_IRQn;       // TIM1更新中断通道[4](@ref)
-    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1; // 抢占优先级
+    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 2; // 抢占优先级
     NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;       // 子优先级
     NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStruct);
@@ -145,8 +145,11 @@ void TIM1_UP_IRQHandler(void)                             // TIM1更新中断服
 		//TIM_ClearITPendingBit(TIM3, TIM_IT_Update);			//清除TIM2更新事件的中断标志位
 															//中断标志位必须清除
 															//否则中断将连续不断地触发，导致主程序卡死
-        float temp = (float) Motor1_Speed;
-        Serial_SendJustFloat(&temp, 1);
+        float arr[3];
+        arr[0] = (float)Motor1_Speed;
+        arr[1] = (float)Target;
+        arr[2] = (float)Out;
+                Serial_SendJustFloat(arr, 3);
         PIDControl();
         TIM_ClearITPendingBit(TIM1, TIM_IT_Update);       // 清除中断标志位[4,5](@ref)
     }

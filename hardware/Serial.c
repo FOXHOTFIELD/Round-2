@@ -1,10 +1,12 @@
 #include "stm32f10x.h"                  // Device header
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 #include "Claim.h"
 #include "oled.h"
 char Serial_RxPacket[100];				//定义接收数据包数组，数据包格式"@MSG\r\n"
-uint8_t Serial_RxFlag;					//定义接收数据包标志位
+uint8_t Serial_RxData;		//定义串口接收的数据变量
+uint8_t Serial_RxFlag;		//定义串口接收的标志位变量			//定义接收数据包标志位
 #define JUSTFLOAT_TAIL   {0x00, 0x00, 0x80, 0x7f} // 帧尾[1]
 /**
   * 函    数：串口初始化
@@ -43,13 +45,13 @@ void Serial_Init(void)
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);			//开启串口接收数据的中断
 	
 	/*NVIC中断分组*/
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);			//配置NVIC为分组2
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);			//配置NVIC为分组2      //  > :[]
 	
 	/*NVIC配置*/
 	NVIC_InitTypeDef NVIC_InitStructure;					//定义结构体变量
 	NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;		//选择配置NVIC的USART1线
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//指定NVIC线路使能
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;		//指定NVIC线路的抢占优先级为1
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;		//指定NVIC线路的抢占优先级为1
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;		//指定NVIC线路的响应优先级为1
 	NVIC_Init(&NVIC_InitStructure);							//将结构体变量交给NVIC_Init，配置NVIC外设
 	
@@ -155,6 +157,31 @@ void Serial_Printf(char *format, ...)
 }
 
 /**
+  * 函    数：获取串口接收标志位
+  * 参    数：无
+  * 返 回 值：串口接收标志位，范围：0~1，接收到数据后，标志位置1，读取后标志位自动清零
+  */
+uint8_t Serial_GetRxFlag(void)
+{
+	if (Serial_RxFlag == 1)			//如果标志位为1
+	{
+		Serial_RxFlag = 0;
+		return 1;					//则返回1，并自动清零标志位
+	}
+	return 0;						//如果标志位为0，则返回0
+}
+
+/**
+  * 函    数：获取串口接收的数据
+  * 参    数：无
+  * 返 回 值：接收的数据，范围：0~255
+  */
+uint8_t Serial_GetRxData(void)
+{
+	return Serial_RxData;			//返回接收的数据变量
+}
+
+/**
   * 函    数：串口发送VOFA+ JustFloat协议格式数据
   * 参    数：data 浮点型数组的首地址
   * 参    数：num 浮点型数组的长度（通道数量）
@@ -239,11 +266,18 @@ void processCmd(void)
 {
         if (Serial_RxFlag == 1)		//如果接收到数据包
 		{
+			Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
+
 			OLED_ShowString(4, 1, "                ");
 			OLED_ShowString(4, 1, Serial_RxPacket);				//OLED清除指定位置，并显示接收到的数据包
-            int temp;
-            sscanf(Serial_RxPacket, "%*s%d ", &temp);
-            Target = temp;
-			Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
+            float data = 0;
+			char Cmd;
+            sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
+			//OLED_ShowString(2, 5, Cmd);
+			if(Cmd == 'S') Target = data;
+			else if(Cmd == 'i') Ki = data;
+			else if(Cmd == 'p') Kp = data;
+			else if(Cmd == 'd') Kd = data;
+
 		}
 }

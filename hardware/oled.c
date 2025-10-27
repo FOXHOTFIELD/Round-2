@@ -1,5 +1,6 @@
 #include "stm32f10x.h"
 #include "oledFont.h"
+#include <stdio.h>
 
 /*????*/
 #define OLED_W_SCL(x)		GPIO_WriteBit(GPIOB, GPIO_Pin_8, (BitAction)(x))
@@ -262,7 +263,49 @@ void OLED_ShowBinNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Leng
 		OLED_ShowChar(Line, Column + i, Number / OLED_Pow(2, Length - i - 1) % 2 + '0');
 	}
 }
-
+/**
+  * @brief  OLED显示浮点数（增强版）
+  * @param  Line 起始行位置，范围：1~4
+  * @param  Column 起始列位置，范围：1~16
+  * @param  Number 要显示的数字
+  * @param  DecimalLength 小数部分位数
+  * @retval 无
+  */
+void OLED_ShowFloat(uint8_t Line, uint8_t Column, float Number, uint8_t DecimalLength)
+{
+    char buffer[16];
+    uint8_t isNegative = 0;
+    
+    if (Number < 0)
+    {
+        isNegative = 1;
+        Number = -Number;
+    }
+    
+    // 处理整数部分
+    uint32_t intPart = (uint32_t)Number;
+    // 处理小数部分（带四舍五入）
+    float decimal = Number - intPart;
+    uint32_t decimalPart = (uint32_t)(decimal * OLED_Pow(10, DecimalLength) + 0.5);
+    
+    // 处理四舍五入导致的整数部分进位
+    if (decimalPart >= OLED_Pow(10, DecimalLength))
+    {
+        intPart++;
+        decimalPart = 0;
+    }
+    
+    if (isNegative)
+    {
+        sprintf(buffer, "-%lu.%0*lu", intPart, DecimalLength, decimalPart);
+    }
+    else
+    {
+        sprintf(buffer, " %lu.%0*lu", intPart, DecimalLength, decimalPart);
+    }
+    
+    OLED_ShowString(Line, Column, buffer);
+}
 /**
   * @brief  OLED???
   * @param  ?
