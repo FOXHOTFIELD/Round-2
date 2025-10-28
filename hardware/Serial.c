@@ -266,18 +266,67 @@ void processCmd(void)
 {
         if (Serial_RxFlag == 1)		//如果接收到数据包
 		{
-			Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
+			if(test == TEST_1)
+			{	
+				OLED_ShowString(4, 1, "aaa");
+				Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
 
-			OLED_ShowString(4, 1, "                ");
-			OLED_ShowString(4, 1, Serial_RxPacket);				//OLED清除指定位置，并显示接收到的数据包
-            float data = 0;
-			char Cmd;
-            sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
-			//OLED_ShowString(2, 5, Cmd);
-			if(Cmd == 'S') Target = data;
-			else if(Cmd == 'i') Ki = data;
-			else if(Cmd == 'p') Kp = data;
-			else if(Cmd == 'd') Kd = data;
+				OLED_ShowString(4, 1, "       ");
+				OLED_ShowString(4, 1, Serial_RxPacket);				//OLED清除指定位置，并显示接收到的数据包
+            	float data = 0;
+				char Cmd;
+            	sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
+				//OLED_ShowString(2, 5, Cmd);
+				if(Cmd == 'S') Target = data;
+				else if(Cmd == 'i') Ki = data;
+				else if(Cmd == 'p') Kp = data;
+				else if(Cmd == 'd') Kd = data;
+			}
+			else if(test == TEST_2)
+			{				
+				Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
 
+				OLED_ShowString(4, 1, "       ");
+				OLED_ShowString(4, 1, Serial_RxPacket);				//OLED清除指定位置，并显示接收到的数据包
+            	float data = 0;
+				char Cmd;
+            	sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
+				//OLED_ShowString(2, 5, Cmd);
+				if(Cmd == 'S') OuterTarget = data;
+				else if(Cmd == 'i') OuterKi = data;
+				else if(Cmd == 'p') OuterKp = data;
+				else if(Cmd == 'd') OuterKd = data;
+			}
 		}
+}
+
+void Serial_DeInit(void)
+{
+    /* 关闭中断并清除 pending */
+    USART_ITConfig(USART1, USART_IT_RXNE, DISABLE);
+    USART_ClearITPendingBit(USART1, USART_IT_RXNE);
+
+    NVIC_InitTypeDef NVIC_InitStructure;
+    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = DISABLE;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+    NVIC_Init(&NVIC_InitStructure);
+
+    /* 关闭 USART 外设 */
+    USART_Cmd(USART1, DISABLE);
+    USART_DeInit(USART1);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, DISABLE);
+
+    /* 将 PA9/PA10 设为模拟输入，释放为其它用途 */
+    GPIO_InitTypeDef GPIO_InitStructure;
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9 | GPIO_Pin_10;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    /* 清相关状态和缓冲 */
+    Serial_RxFlag = 0;
+    Serial_RxData = 0;
+    memset(Serial_RxPacket, 0, sizeof(Serial_RxPacket));
 }

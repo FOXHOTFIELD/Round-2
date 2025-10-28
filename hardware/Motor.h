@@ -1,6 +1,7 @@
 #ifndef __MOTOR_H
 #define __MOTOR_H
 
+void ButtonInit(void);
 void Motor_SetPWM(int8_t PWM);
 int16_t Motor1_getSpeed(void);
 void Motor_Init(void);

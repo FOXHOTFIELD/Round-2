@@ -2,6 +2,9 @@
 #include "Claim.h"
 #include "Serial.h"
 #include "PID.h"
+#include "Delay.h"
+#include "oled.h"
+#include "Encoder.h"
 
 extern int flag;
 extern int count;
@@ -29,8 +32,8 @@ void Motor_Init(void)
     TIM_TimeBaseInitTypeDef TIM_TBIS;
     TIM_TBIS.TIM_ClockDivision = TIM_CKD_DIV1;
     TIM_TBIS.TIM_CounterMode = TIM_CounterMode_Up;
-    TIM_TBIS.TIM_Period = 100 - 1;
-    TIM_TBIS.TIM_Prescaler = 720 - 1;
+    TIM_TBIS.TIM_Period = 100 - 1;                // ARR = 100 |Out| < 100
+    TIM_TBIS.TIM_Prescaler = 72 - 1;              //10k Hz
     TIM_TBIS.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM2, &TIM_TBIS); 
 
@@ -89,7 +92,7 @@ void Motor_Init(void)
 
 }
 
-void TIM1_Init(void)                //定时中断 20ms
+void TIM1_Init(void)                //定时中断 10ms
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStruct;
     NVIC_InitTypeDef NVIC_InitStruct;
@@ -98,29 +101,28 @@ void TIM1_Init(void)                //定时中断 20ms
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
 
     // 2. 配置定时器基本参数
-    // 目标：20ms定时。假设系统时钟72MHz，TIM1挂载在APB2（通常与系统时钟同频）
-    // 计算公式：定时时间 = (Prescaler + 1) * (Period + 1) / TIM_Clock
+    // 目标：10ms定时。假设系统时钟72MHz，TIM1挂载在APB2（通常与系统时钟同频）
     // 设置预分频器为7199，则计数器时钟频率 = 72MHz / (7199 + 1) = 10kHz（周期0.1ms）
-    // 设置自动重载值ARR为199，则定时周期 = (199 + 1) * 0.1ms = 20ms
-    TIM_TimeBaseInitStruct.TIM_Prescaler = 7199;          // 预分频值[2,5](@ref)
-    TIM_TimeBaseInitStruct.TIM_Period = 199;              // 自动重载值ARR[2,5](@ref)
-    TIM_TimeBaseInitStruct.TIM_CounterMode = TIM_CounterMode_Up; // 向上计数模式[5](@ref)
-    TIM_TimeBaseInitStruct.TIM_ClockDivision = TIM_CKD_DIV1;     // 时钟分频[5](@ref)
-    TIM_TimeBaseInitStruct.TIM_RepetitionCounter = 0;     // 重复计数器（高级定时器特有）[5](@ref)
+    // 设置自动重载值ARR为99，则定时周期 = (99 + 1) * 0.1ms = 10ms
+    TIM_TimeBaseInitStruct.TIM_Prescaler = 7199;          // 预分频值
+    TIM_TimeBaseInitStruct.TIM_Period = 99;               // 自动重载值ARR，改为99以实现10ms
+    TIM_TimeBaseInitStruct.TIM_CounterMode = TIM_CounterMode_Up; // 向上计数模式
+    TIM_TimeBaseInitStruct.TIM_ClockDivision = TIM_CKD_DIV1;     // 时钟分频
+    TIM_TimeBaseInitStruct.TIM_RepetitionCounter = 0;     // 重复计数器（高级定时器特有）
     TIM_TimeBaseInit(TIM1, &TIM_TimeBaseInitStruct);
 
     // 3. 使能更新中断
-    TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);            // 使能更新中断[4,5](@ref)
+    TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);            // 使能更新中断
 
     // 4. 配置NVIC（嵌套向量中断控制器）
-    NVIC_InitStruct.NVIC_IRQChannel = TIM1_UP_IRQn;       // TIM1更新中断通道[4](@ref)
+    NVIC_InitStruct.NVIC_IRQChannel = TIM1_UP_IRQn;       // TIM1更新中断通道
     NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 2; // 抢占优先级
     NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;       // 子优先级
     NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStruct);
 
     // 5. 启动定时器
-    TIM_Cmd(TIM1, ENABLE);                                 // 启动TIM1[4,5](@ref)
+    TIM_Cmd(TIM1, ENABLE);                                 // 启动TIM1
 }
 /**
   * 函    数：获取编码器的增量值
@@ -142,14 +144,26 @@ void TIM1_UP_IRQHandler(void)                             // TIM1更新中断服
     {
 
         Motor1_Speed = Motor1_getSpeed();   				//每隔固定时间段读取一次编码器计数增量值，即为速度值
+        Encoder_Count += Encoder_Get();                     //目标电机的位置
 		//TIM_ClearITPendingBit(TIM3, TIM_IT_Update);			//清除TIM2更新事件的中断标志位
 															//中断标志位必须清除
 															//否则中断将连续不断地触发，导致主程序卡死
-        float arr[3];
-        arr[0] = (float)Motor1_Speed;
-        arr[1] = (float)Target;
-        arr[2] = (float)Out;
-                Serial_SendJustFloat(arr, 3);
+        if(test == TEST_1)
+        {
+            float arr[3];
+            arr[0] = (float)Actual;
+            arr[1] = (float)Target;
+            arr[2] = (float)Out;
+            Serial_SendJustFloat(arr, 3);
+        }else if(test ==TEST_2)
+        {
+            float arr[3];
+            arr[0] = (float)OuterActual;
+            arr[1] = (float)OuterTarget;
+            arr[2] = (float)OuterOut;
+            Serial_SendJustFloat(arr, 3);
+
+        }
         PIDControl();
         TIM_ClearITPendingBit(TIM1, TIM_IT_Update);       // 清除中断标志位[4,5](@ref)
     }
@@ -256,4 +270,48 @@ void Motor1_SetPrescaler(uint16_t Prescaler)
 	TIM_PrescalerConfig(TIM2, Prescaler, TIM_PSCReloadMode_Immediate);		//设置PSC的值
 }
 
+void ButtonInit(void)
+{
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
+    
+    GPIO_InitTypeDef GPIO_IS;
+    GPIO_IS.GPIO_Mode = GPIO_Mode_IPD;
+    GPIO_IS.GPIO_Pin = GPIO_Pin_0;
+    GPIO_IS.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_IS);
 
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
+
+    EXTI_InitTypeDef EXTI_IS;
+    EXTI_IS.EXTI_Line = EXTI_Line0;
+    EXTI_IS.EXTI_LineCmd = ENABLE;
+    EXTI_IS.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_IS.EXTI_Trigger = EXTI_Trigger_Rising;
+    EXTI_Init(&EXTI_IS);
+
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+
+    NVIC_InitTypeDef NVIC_IS;
+    NVIC_IS.NVIC_IRQChannel = EXTI0_IRQn;
+    NVIC_IS.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_IS.NVIC_IRQChannelPreemptionPriority = 0;
+    NVIC_IS.NVIC_IRQChannelSubPriority = 0;
+    NVIC_Init(&NVIC_IS);
+
+}
+
+void EXTI0_IRQHandler(void)
+{
+    if(EXTI_GetITStatus(EXTI_Line0) == SET)
+    {
+        Delay_ms(20);
+        while(GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0) == 0) ;
+        Delay_ms(20);
+        g_encoder_init = (test == TEST_1 ? 1 : 0);
+        g_encoder_deinit = (test == TEST_2 ? 1 : 0);
+        test = (test == TEST_1 ? TEST_2 : TEST_1);
+        g_oled_clear_request = 1;
+    }
+    EXTI_ClearITPendingBit(EXTI_Line0);
+}
