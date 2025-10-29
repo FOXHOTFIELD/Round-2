@@ -1,13 +1,5 @@
-#include "stm32f10x.h"
-#include "Claim.h"
-#include "Serial.h"
-#include "PID.h"
-#include "Delay.h"
-#include "oled.h"
-#include "Encoder.h"
+#include "MyHeader.h"
 
-extern int flag;
-extern int count;
 void Motor_Init(void)
 {
     /*电机1初始化*/
@@ -170,30 +162,6 @@ void TIM1_UP_IRQHandler(void)                             // TIM1更新中断服
 }
 
 
-
-/**
-  * 函    数：TIM3中断函数
-  * 参    数：无
-  * 返 回 值：无
-  * 注意事项：此函数为中断函数，无需调用，中断触发后自动执行
-  *           函数名为预留的指定名称，可以从启动文件复制
-  *           请确保函数名正确，不能有任何差异，否则中断函数将不能进入
-  */
-void TIM3_IRQHandler(void)
-{
-	//if (TIM_GetITStatus(TIM3, TIM_IT_Update) == SET)		//判断是否是TIM2的更新事件触发的中断
-	//{        flag ++;
-
-        //if(count == 22){
-
-        //count = 0;
-        //Motor1_Speed = Motor1_getSpeed();   				//每隔固定时间段读取一次编码器计数增量值，即为速度值
-		//TIM_ClearITPendingBit(TIM3, TIM_IT_Update);			//清除TIM2更新事件的中断标志位
-															////中断标志位必须清除
-															////否则中断将连续不断地触发，导致主程序卡死
-        //}else if(count < 22) count++;
-	//}
-}
 /**
   * 函    数：PWM设置CCR
   * 参    数：Compare 要写入的CCR的值，范围：0~100

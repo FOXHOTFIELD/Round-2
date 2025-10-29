@@ -1,9 +1,8 @@
-#include "stm32f10x.h"                  // Device header
+#include "MyHeader.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include "Claim.h"
-#include "oled.h"
+
 char Serial_RxPacket[100];				//定义接收数据包数组，数据包格式"@MSG\r\n"
 uint8_t Serial_RxData;		//定义串口接收的数据变量
 uint8_t Serial_RxFlag;		//定义串口接收的标志位变量			//定义接收数据包标志位
@@ -264,12 +263,11 @@ void USART1_IRQHandler(void)
 
 void processCmd(void)
 {
-        if (Serial_RxFlag == 1)		//如果接收到数据包
-		{
-			if(test == TEST_1)
-			{	
-				OLED_ShowString(4, 1, "aaa");
-				Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
+	if (Serial_RxFlag == 1)		//如果接收到数据包
+	{
+		if(test == TEST_1)
+		{	
+			Serial_RxFlag = 0;			//处理完成后，需要将接收数据包标志位清零，否则将无法接收后续数据包
 
 				OLED_ShowString(4, 1, "       ");
 				OLED_ShowString(4, 1, Serial_RxPacket);				//OLED清除指定位置，并显示接收到的数据包
@@ -277,7 +275,7 @@ void processCmd(void)
 				char Cmd;
             	sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
 				//OLED_ShowString(2, 5, Cmd);
-				if(Cmd == 'S') Target = data;
+				if(Cmd == 'S') pid_subject = data;
 				else if(Cmd == 'i') Ki = data;
 				else if(Cmd == 'p') Kp = data;
 				else if(Cmd == 'd') Kd = data;
@@ -288,16 +286,15 @@ void processCmd(void)
 
 				OLED_ShowString(4, 1, "       ");
 				OLED_ShowString(4, 1, Serial_RxPacket);				//OLED清除指定位置，并显示接收到的数据包
-            	float data = 0;
+				float data = 0;
 				char Cmd;
-            	sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
+				sscanf(Serial_RxPacket, "%c%f", &Cmd, &data);
 				//OLED_ShowString(2, 5, Cmd);
-				if(Cmd == 'S') OuterTarget = data;
-				else if(Cmd == 'i') OuterKi = data;
+				if(Cmd == 'i') OuterKi = data;
 				else if(Cmd == 'p') OuterKp = data;
 				else if(Cmd == 'd') OuterKd = data;
-			}
 		}
+	}
 }
 
 void Serial_DeInit(void)

@@ -1,5 +1,4 @@
-#include "stm32f10x.h"                  // Device header
-#include "Claim.h"
+#include "MyHeader.h"
 
 // 使用 TIM4 作为编码器计数（PB6/PB7）
 void Encoder_Init(void)
